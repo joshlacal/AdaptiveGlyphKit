@@ -97,10 +97,13 @@ This is an **experimental compatibility bridge**, not a Genmoji generator:
   API**. AdaptiveGlyphKit reproduces it (a HEIC whose TIFF `DocumentName` carries
   the identifier and `ImageDescription` the accessibility text). A future OS
   could change what the initializer accepts.
-- It produces a **single HEIC representation**. Apple's own content is
-  multi-resolution with sizing/alignment metadata; here the system scales one
-  representation. This is sufficient for inline rendering on tested OS releases
-  but is not the complete Genmoji format.
+- It produces a **single HEIC representation** (with alpha), which the system
+  scales. This matches what Apple's own Genmoji actually ship (a single ~320 px
+  image + alpha); AdaptiveGlyphKit uses 512 px. Transparency is preserved and a
+  single representation scales cleanly across Dynamic Type sizes (both verified
+  in tests), so multi-resolution isn't needed for inline use. What's *not*
+  reproduced is the format's sizing/alignment metadata, so baseline/optical
+  alignment may differ slightly from a true Genmoji at extreme sizes.
 - Because acceptance is undocumented, **degrade gracefully**: `makeGlyph`
   returns `nil` and `AttributedString(adaptiveImageGlyph:)` returns `nil` on
   failure, and the high-level `adaptiveImageGlyph(from:…fallback:)` returns your
