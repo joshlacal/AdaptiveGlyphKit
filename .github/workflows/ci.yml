@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.platform }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS
+            destination: platform=macOS
+          - platform: iOS
+            destination: platform=iOS Simulator,name=iPhone 16 Pro
+    env:
+      # Pin a stable Xcode (adjust to a version the runner has that ships the
+      # iOS 18 / macOS 15 SDKs). See runner image release notes for the path.
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      DESTINATION: ${{ matrix.destination }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show versions
+        run: swift --version && xcodebuild -version
+      - name: Test
+        run: xcodebuild test -scheme AdaptiveGlyphKit -destination "$DESTINATION"
