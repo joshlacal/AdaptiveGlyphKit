@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
   import UIKit
 #endif
 
+#if !os(watchOS)
 @Suite("Sizing & transparency")
 struct SizingAndAlphaTests {
 
@@ -81,4 +82,5 @@ struct SizingAndAlphaTests {
 #if os(iOS)
   import SwiftUI
   private func SwiftUIText(_ s: AttributedString) -> Text { Text(s) }
+#endif
 #endif

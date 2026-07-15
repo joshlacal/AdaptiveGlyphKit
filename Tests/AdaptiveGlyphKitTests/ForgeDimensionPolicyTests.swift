@@ -2,6 +2,7 @@ import CoreGraphics
 import Testing
 @testable import AdaptiveGlyphKit
 
+#if !os(watchOS)
 @Suite("Forge dimension policy")
 struct ForgeDimensionPolicyTests {
   @Test(
@@ -56,3 +57,4 @@ struct ForgeDimensionPolicyTests {
     #expect(notUpscaled.height == 9)
   }
 }
+#endif

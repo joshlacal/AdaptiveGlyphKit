@@ -3,6 +3,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+#if !os(watchOS)
 enum EncodingTestFixtureError: Error {
   case couldNotCreateImageSource
   case couldNotCreatePNGDestination
@@ -79,3 +80,4 @@ enum EncodingTestFixtures {
     return max(image.width, image.height)
   }
 }
+#endif

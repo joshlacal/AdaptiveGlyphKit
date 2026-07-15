@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import AdaptiveGlyphKit
 
+#if !os(watchOS)
 @Suite("Forge output policy")
 struct ForgeOutputPolicyTests {
   @Test("512-pixel high-entropy content is consumable when returned")
@@ -38,3 +39,4 @@ struct ForgeOutputPolicyTests {
     }
   }
 }
+#endif

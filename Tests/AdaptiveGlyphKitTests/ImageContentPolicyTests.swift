@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 
 @Suite("Pre-forged image content policy")
 struct ImageContentPolicyTests {
+  #if !os(watchOS)
   private static func blueCircle(width: Int, height: Int) throws -> CGImage {
     let context = try #require(
       CGContext(
@@ -49,6 +50,7 @@ struct ImageContentPolicyTests {
     try #require(CGImageDestinationFinalize(destination))
     return output as Data
   }
+  #endif
 
   private static func imageSource(for data: Data) throws -> CGImageSource {
     try #require(
@@ -121,6 +123,7 @@ struct ImageContentPolicyTests {
     #expect(AdaptiveImageGlyphContentValidator.accepts(data))
   }
 
+  #if !os(watchOS)
   @Test("accepts exactly eight representations")
   func acceptsEightRepresentations() throws {
     let data = try Self.adaptiveGlyphContent(
@@ -167,6 +170,7 @@ struct ImageContentPolicyTests {
     #expect(glyph.contentIdentifier == GlyphFixture.identifier)
     #expect(glyph.contentDescription == GlyphFixture.accessibilityDescription)
   }
+  #endif
 
   @Test("rejects empty and one-MiB-plus-one input")
   func rejectsByteBounds() {

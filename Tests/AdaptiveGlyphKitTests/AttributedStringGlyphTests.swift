@@ -7,6 +7,7 @@ import Testing
 @MainActor
 struct AttributedStringGlyphTests {
 
+  #if !os(watchOS)
   private func sampleGlyph() throws -> NSAdaptiveImageGlyph {
     try #require(
       AdaptiveImageGlyphForge.makeGlyph(
@@ -40,6 +41,7 @@ struct AttributedStringGlyphTests {
     // Success path yields the single-character glyph run, not the fallback.
     #expect(String(s.characters) == "\u{FFFC}")
   }
+  #endif
 
   @Test("pre-forged convenience returns readable fallback text on failure")
   func preForgedConvenienceFallsBackToText() {
@@ -49,6 +51,7 @@ struct AttributedStringGlyphTests {
     #expect(String(s.characters) == ":blobcat:")
   }
 
+  #if !os(watchOS)
   @Test("pre-forged convenience produces a glyph run on success")
   func preForgedConvenienceProducesGlyph() throws {
     let content = try AdaptiveImageGlyphForge.makeImageContent(
@@ -60,6 +63,7 @@ struct AttributedStringGlyphTests {
       fallback: ":blobcat:")
     #expect(String(s.characters) == "\u{FFFC}")
   }
+  #endif
 
   // ImageRenderer rasterizes adaptive image glyphs on iOS but not on macOS;
   // macOS rendering is covered by `AppKitRenderTests` (NSTextView) instead.

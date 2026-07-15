@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
   import AppKit
 #endif
 
+#if !os(watchOS)
 @Suite("AdaptiveImageGlyphForge")
 struct AdaptiveImageGlyphForgeTests {
 
@@ -119,3 +120,4 @@ struct AdaptiveImageGlyphForgeTests {
     }
   }
 }
+#endif
