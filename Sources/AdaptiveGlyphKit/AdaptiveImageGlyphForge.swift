@@ -54,6 +54,10 @@ public enum AdaptiveImageGlyphForge {
   /// - Throws: ``GlyphForgeError/cannotDecodeImage``, ``GlyphForgeError/encodingFailed``,
   ///   or ``GlyphForgeError/outputExceedsConsumerLimits``.
   /// - Returns: HEIC bytes suitable for `NSAdaptiveImageGlyph(imageContent:)`.
+  @available(
+    watchOS, unavailable,
+    message: "Forge on an encoding-capable platform, then pass imageContent."
+  )
   public static func makeImageContent(
     imageData: Data,
     contentIdentifier: String,
@@ -79,6 +83,10 @@ public enum AdaptiveImageGlyphForge {
   ///
   /// - Throws: ``GlyphForgeError/encodingFailed`` or
   ///   ``GlyphForgeError/outputExceedsConsumerLimits``.
+  @available(
+    watchOS, unavailable,
+    message: "Forge on an encoding-capable platform, then pass imageContent."
+  )
   public static func makeImageContent(
     cgImage: CGImage,
     contentIdentifier: String,
@@ -116,6 +124,10 @@ public enum AdaptiveImageGlyphForge {
   ///
   /// Normalizes orientation and downsamples to `maximumDimension`. Returns `nil`
   /// if decoding, encoding, or system acceptance fails.
+  @available(
+    watchOS, unavailable,
+    message: "Forge on an encoding-capable platform, then pass imageContent."
+  )
   public static func makeGlyph(
     imageData: Data,
     contentIdentifier: String,
@@ -132,6 +144,10 @@ public enum AdaptiveImageGlyphForge {
 
   /// Forge an adaptive image glyph from an already-decoded `CGImage`,
   /// downscaling to `maximumDimension` when needed.
+  @available(
+    watchOS, unavailable,
+    message: "Forge on an encoding-capable platform, then pass imageContent."
+  )
   public static func makeGlyph(
     cgImage: CGImage,
     contentIdentifier: String,

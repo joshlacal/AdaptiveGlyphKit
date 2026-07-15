@@ -38,6 +38,21 @@ public extension AttributedString {
     self = bridged
   }
 
+  /// Build an inline adaptive image glyph from previously forged image content,
+  /// falling back to readable text if the content or attribution is rejected.
+  static func adaptiveImageGlyph(
+    imageContent: Data,
+    fallback: String
+  ) -> AttributedString {
+    guard
+      let glyph = AdaptiveImageGlyphForge.makeGlyph(imageContent: imageContent),
+      let run = AttributedString(adaptiveImageGlyph: glyph)
+    else {
+      return AttributedString(fallback)
+    }
+    return run
+  }
+
   /// Forge an inline adaptive image glyph from image data, **falling back to
   /// readable text** whenever anything fails (decoding, encoding, system
   /// acceptance, or attribution).
@@ -59,6 +74,10 @@ public extension AttributedString {
   ///   - accessibilityDescription: Accessibility text for the glyph.
   ///   - fallback: Text to render if a glyph can't be produced.
   ///   - maximumDimension: Longer-edge pixel cap for the source image.
+  @available(
+    watchOS, unavailable,
+    message: "Forge on an encoding-capable platform, then pass imageContent."
+  )
   static func adaptiveImageGlyph(
     from imageData: Data,
     contentIdentifier: String,

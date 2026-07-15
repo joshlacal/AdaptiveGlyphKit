@@ -41,6 +41,26 @@ struct AttributedStringGlyphTests {
     #expect(String(s.characters) == "\u{FFFC}")
   }
 
+  @Test("pre-forged convenience returns readable fallback text on failure")
+  func preForgedConvenienceFallsBackToText() {
+    let s = AttributedString.adaptiveImageGlyph(
+      imageContent: Data([0x00, 0x01, 0x02, 0x03]),
+      fallback: ":blobcat:")
+    #expect(String(s.characters) == ":blobcat:")
+  }
+
+  @Test("pre-forged convenience produces a glyph run on success")
+  func preForgedConvenienceProducesGlyph() throws {
+    let content = try AdaptiveImageGlyphForge.makeImageContent(
+      imageData: AdaptiveImageGlyphForgeTests.samplePNG(),
+      contentIdentifier: "CAFE0002-0000-4AAA-8BBB-000000000002",
+      accessibilityDescription: "cat")
+    let s = AttributedString.adaptiveImageGlyph(
+      imageContent: content,
+      fallback: ":blobcat:")
+    #expect(String(s.characters) == "\u{FFFC}")
+  }
+
   // ImageRenderer rasterizes adaptive image glyphs on iOS but not on macOS;
   // macOS rendering is covered by `AppKitRenderTests` (NSTextView) instead.
   #if os(iOS)
