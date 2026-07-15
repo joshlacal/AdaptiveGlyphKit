@@ -1,0 +1,35 @@
+{
+  "adaptiveGlyphKitSourceRevision" : "a1afe9552df4384999a736dcf24cc44d0fdc0750",
+  "fixtures" : [
+    {
+      "byteCount" : 10479,
+      "path" : "project-owned-blue-glyph.heic",
+      "sha256" : "fc5b867d95492d2b85c8336d2ecbce2705c42c64156f2440b24886addcd2d41d"
+    },
+    {
+      "byteCount" : 17737,
+      "path" : "wrong-type.png",
+      "sha256" : "f45ee4215d56cd23768bcc0f56e4a93f5959208f1d9c467e839124048e70e4d7"
+    },
+    {
+      "byteCount" : 27905,
+      "path" : "nine-representations.heic",
+      "sha256" : "ccc4578d242dc3f19a694c067a2dce9dcf6029c8a3fc5d5f11ca83967173cedd"
+    },
+    {
+      "byteCount" : 23408,
+      "path" : "edge-1025.heic",
+      "sha256" : "c58d375db03ab4f9a56eedb35130d2a0e7106a1c23ad8ea403689ad105c66dde"
+    },
+    {
+      "byteCount" : 41251,
+      "path" : "two-1024-representations.heic",
+      "sha256" : "a30f743cc529796d199a983562dd5f6f47428407bf960408082e1636f5fed5f7"
+    }
+  ],
+  "generatorCommand" : "xcrun swift Scripts\/generate-test-fixtures.swift Tests\/AdaptiveGlyphKitTests\/Fixtures",
+  "generatorPlatform" : "Version 27.0 (Build 26A5378n)",
+  "semanticDescription" : "Project-owned blue circle",
+  "semanticIdentifier" : "adaptiveglyphkit.project-owned.blue-circle.v1",
+  "sourceArtwork" : "Original solid-blue circle drawn by the AdaptiveGlyphKit fixture generator."
+}

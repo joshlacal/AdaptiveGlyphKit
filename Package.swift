@@ -16,6 +16,10 @@ let package = Package(
   ],
   targets: [
     .target(name: "AdaptiveGlyphKit"),
-    .testTarget(name: "AdaptiveGlyphKitTests", dependencies: ["AdaptiveGlyphKit"]),
+    .testTarget(
+      name: "AdaptiveGlyphKitTests",
+      dependencies: ["AdaptiveGlyphKit"],
+      resources: [.process("Fixtures")]
+    ),
   ]
 )
