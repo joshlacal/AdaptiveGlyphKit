@@ -136,11 +136,15 @@ public enum AdaptiveImageGlyphForge {
   /// edge is at most `maximumDimension` (never upscaling).
   private static func normalizedImage(from imageData: Data, maximumDimension: CGFloat) -> CGImage? {
     guard let source = CGImageSourceCreateWithData(imageData as CFData, nil) else { return nil }
+    // Clamp to a finite, in-range value before `Int(...)` — a non-finite or
+    // overflowing `maximumDimension` (e.g. `.infinity`/`.nan` as a "no cap"
+    // sentinel) would otherwise trap.
+    let clamped = maximumDimension.isFinite ? min(max(maximumDimension, 1), 8192) : 8192
     let options: [CFString: Any] = [
       kCGImageSourceCreateThumbnailFromImageAlways: true,
       kCGImageSourceCreateThumbnailWithTransform: true, // bakes in EXIF orientation
       kCGImageSourceShouldCacheImmediately: true,
-      kCGImageSourceThumbnailMaxPixelSize: max(1, Int(maximumDimension.rounded())),
+      kCGImageSourceThumbnailMaxPixelSize: Int(clamped.rounded()),
     ]
     return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
   }

@@ -96,4 +96,22 @@ struct AdaptiveImageGlyphForgeTests {
     #expect(decoded.width <= 256 && decoded.height <= 256,
       "expected downsample to <=256, got \(decoded.width)x\(decoded.height)")
   }
+
+  @Test("rejects non-forged image content (exercises the nil path)")
+  func rejectsNonForgedContent() {
+    // Both garbage bytes and a plain (un-forged) PNG must be rejected by the OS
+    // and returned as nil — this covers the load-bearing NSAdaptiveImageGlyph
+    // rejection branch that the other tests never reach.
+    #expect(AdaptiveImageGlyphForge.makeGlyph(imageContent: Data([0x00, 0x01, 0x02, 0x03])) == nil)
+    #expect(AdaptiveImageGlyphForge.makeGlyph(imageContent: Self.samplePNG()) == nil)
+  }
+
+  @Test("non-finite / overflowing maximumDimension does not trap")
+  func nonFiniteMaximumDimension() throws {
+    for dim in [CGFloat.infinity, .greatestFiniteMagnitude, .nan] {
+      let data = try AdaptiveImageGlyphForge.makeImageContent(
+        imageData: Self.samplePNG(), contentIdentifier: "dim-test", maximumDimension: dim)
+      #expect(!data.isEmpty)
+    }
+  }
 }
