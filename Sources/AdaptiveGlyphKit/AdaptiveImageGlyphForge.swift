@@ -15,6 +15,8 @@ public enum GlyphForgeError: Error, Equatable, Sendable {
   case cannotDecodeImage
   /// HEIC encoding of the glyph image content failed.
   case encodingFailed
+  /// Encoded output exceeds the package's bounded consumer policy.
+  case outputExceedsConsumerLimits
 }
 
 /// Turns arbitrary images into `NSAdaptiveImageGlyph` content.
@@ -49,7 +51,8 @@ public enum AdaptiveImageGlyphForge {
   /// Encode glyph image content from source image data, normalizing EXIF
   /// orientation and downsampling so the longer edge is at most `maximumDimension`.
   ///
-  /// - Throws: ``GlyphForgeError/cannotDecodeImage`` or ``GlyphForgeError/encodingFailed``.
+  /// - Throws: ``GlyphForgeError/cannotDecodeImage``, ``GlyphForgeError/encodingFailed``,
+  ///   or ``GlyphForgeError/outputExceedsConsumerLimits``.
   /// - Returns: HEIC bytes suitable for `NSAdaptiveImageGlyph(imageContent:)`.
   public static func makeImageContent(
     imageData: Data,
@@ -57,23 +60,38 @@ public enum AdaptiveImageGlyphForge {
     accessibilityDescription: String? = nil,
     maximumDimension: CGFloat = defaultMaximumDimension
   ) throws -> Data {
-    guard let cgImage = normalizedImage(from: imageData, maximumDimension: maximumDimension) else {
+    let maximumPixelDimension = normalizedPixelDimension(maximumDimension)
+    guard let cgImage = normalizedImage(
+      from: imageData,
+      maximumPixelDimension: maximumPixelDimension)
+    else {
       throw GlyphForgeError.cannotDecodeImage
     }
     return try makeImageContent(
       cgImage: cgImage,
       contentIdentifier: contentIdentifier,
-      accessibilityDescription: accessibilityDescription)
+      accessibilityDescription: accessibilityDescription,
+      maximumDimension: CGFloat(maximumPixelDimension))
   }
 
-  /// Encode glyph image content from an already-decoded, already-normalized image.
+  /// Encode glyph image content from an already-decoded image, downscaling so
+  /// the longer edge is at most `maximumDimension`.
   ///
-  /// - Throws: ``GlyphForgeError/encodingFailed``.
+  /// - Throws: ``GlyphForgeError/encodingFailed`` or
+  ///   ``GlyphForgeError/outputExceedsConsumerLimits``.
   public static func makeImageContent(
     cgImage: CGImage,
     contentIdentifier: String,
-    accessibilityDescription: String? = nil
+    accessibilityDescription: String? = nil,
+    maximumDimension: CGFloat = defaultMaximumDimension
   ) throws -> Data {
+    let maximumPixelDimension = normalizedPixelDimension(maximumDimension)
+    guard let image = resizedImage(
+      cgImage,
+      maximumPixelDimension: maximumPixelDimension)
+    else {
+      throw GlyphForgeError.encodingFailed
+    }
     let out = NSMutableData()
     guard let dest = CGImageDestinationCreateWithData(
       out, UTType.heic.identifier as CFString, 1, nil) else {
@@ -87,9 +105,9 @@ public enum AdaptiveImageGlyphForge {
       tiff[kCGImagePropertyTIFFImageDescription] = accessibilityDescription
     }
     let properties: [CFString: Any] = [kCGImagePropertyTIFFDictionary: tiff]
-    CGImageDestinationAddImage(dest, cgImage, properties as CFDictionary)
+    CGImageDestinationAddImage(dest, image, properties as CFDictionary)
     guard CGImageDestinationFinalize(dest) else { throw GlyphForgeError.encodingFailed }
-    return out as Data
+    return try validatedEncodedOutput(out as Data)
   }
 
   // MARK: Glyphs (nil on any failure)
@@ -112,16 +130,19 @@ public enum AdaptiveImageGlyphForge {
     return makeGlyph(imageContent: content)
   }
 
-  /// Forge an adaptive image glyph from an already-normalized `CGImage`.
+  /// Forge an adaptive image glyph from an already-decoded `CGImage`,
+  /// downscaling to `maximumDimension` when needed.
   public static func makeGlyph(
     cgImage: CGImage,
     contentIdentifier: String,
-    accessibilityDescription: String? = nil
+    accessibilityDescription: String? = nil,
+    maximumDimension: CGFloat = defaultMaximumDimension
   ) -> NSAdaptiveImageGlyph? {
     guard let content = try? makeImageContent(
       cgImage: cgImage,
       contentIdentifier: contentIdentifier,
-      accessibilityDescription: accessibilityDescription) else { return nil }
+      accessibilityDescription: accessibilityDescription,
+      maximumDimension: maximumDimension) else { return nil }
     return makeGlyph(imageContent: content)
   }
 
@@ -137,21 +158,72 @@ public enum AdaptiveImageGlyphForge {
     return glyph
   }
 
+  // MARK: Encoding policy
+
+  static func normalizedPixelDimension(_ maximumDimension: CGFloat) -> Int {
+    guard maximumDimension.isFinite else {
+      return Int(maximumForgePixelDimension)
+    }
+    let clamped = min(max(maximumDimension, 1), maximumForgePixelDimension)
+    return Int(clamped.rounded(.down))
+  }
+
+  static func resizedImage(
+    _ image: CGImage,
+    maximumPixelDimension: Int
+  ) -> CGImage? {
+    guard maximumPixelDimension >= 1 else { return nil }
+    let sourceMaximumDimension = max(image.width, image.height)
+    guard sourceMaximumDimension > maximumPixelDimension else { return image }
+
+    let scale = CGFloat(maximumPixelDimension) / CGFloat(sourceMaximumDimension)
+    let width = max(1, Int((CGFloat(image.width) * scale).rounded(.down)))
+    let height = max(1, Int((CGFloat(image.height) * scale).rounded(.down)))
+    guard
+      let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+      let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: width * 4,
+        space: colorSpace,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    else {
+      return nil
+    }
+    let bounds = CGRect(
+      x: 0,
+      y: 0,
+      width: CGFloat(width),
+      height: CGFloat(height))
+    context.interpolationQuality = .high
+    context.clear(bounds)
+    context.draw(image, in: bounds)
+    return context.makeImage()
+  }
+
+  static func validatedEncodedOutput(_ output: Data) throws -> Data {
+    guard AdaptiveImageGlyphContentValidator.accepts(output) else {
+      throw GlyphForgeError.outputExceedsConsumerLimits
+    }
+    return output
+  }
+
   // MARK: Private
 
   /// Decode `imageData`, apply EXIF orientation, and downsample so the longer
-  /// edge is at most `maximumDimension` (never upscaling).
-  private static func normalizedImage(from imageData: Data, maximumDimension: CGFloat) -> CGImage? {
+  /// edge is at most `maximumPixelDimension` (never upscaling).
+  private static func normalizedImage(
+    from imageData: Data,
+    maximumPixelDimension: Int
+  ) -> CGImage? {
     guard let source = CGImageSourceCreateWithData(imageData as CFData, nil) else { return nil }
-    // Clamp to a finite, in-range value before `Int(...)` — a non-finite or
-    // overflowing `maximumDimension` (e.g. `.infinity`/`.nan` as a "no cap"
-    // sentinel) would otherwise trap.
-    let clamped = maximumDimension.isFinite ? min(max(maximumDimension, 1), 8192) : 8192
     let options: [CFString: Any] = [
       kCGImageSourceCreateThumbnailFromImageAlways: true,
       kCGImageSourceCreateThumbnailWithTransform: true, // bakes in EXIF orientation
       kCGImageSourceShouldCacheImmediately: true,
-      kCGImageSourceThumbnailMaxPixelSize: Int(clamped.rounded()),
+      kCGImageSourceThumbnailMaxPixelSize: maximumPixelDimension,
     ]
     return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
   }

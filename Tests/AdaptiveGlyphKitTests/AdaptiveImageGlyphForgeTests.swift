@@ -72,7 +72,11 @@ struct AdaptiveImageGlyphForgeTests {
     let source = try #require(CGImageSourceCreateWithData(Self.samplePNG() as CFData, nil))
     let cg = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
     let id = "11112222-0000-4333-8444-555566667777"
-    let glyph = try #require(AdaptiveImageGlyphForge.makeGlyph(cgImage: cg, contentIdentifier: id))
+    let glyph = try #require(
+      AdaptiveImageGlyphForge.makeGlyph(
+        cgImage: cg,
+        contentIdentifier: id,
+        maximumDimension: 64))
     #expect(glyph.contentIdentifier == id)
   }
 
