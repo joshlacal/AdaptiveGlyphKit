@@ -38,6 +38,12 @@ public enum AdaptiveImageGlyphForge {
   /// CPU bounded for large or remote source images.
   public static let defaultMaximumDimension: CGFloat = 512
 
+  /// Maximum accepted byte count for pre-forged adaptive image glyph content.
+  public static let maximumImageContentByteCount: Int = 1_048_576
+
+  /// Maximum accepted pixel dimension for each forged glyph representation.
+  public static let maximumForgePixelDimension: CGFloat = 1_024
+
   // MARK: Image content (HEIC bytes)
 
   /// Encode glyph image content from source image data, normalizing EXIF
@@ -124,6 +130,7 @@ public enum AdaptiveImageGlyphForge {
   /// The `contentIdentifier`/`contentDescription` are read back out of the bytes,
   /// so nothing is lost round-tripping through storage.
   public static func makeGlyph(imageContent: Data) -> NSAdaptiveImageGlyph? {
+    guard AdaptiveImageGlyphContentValidator.accepts(imageContent) else { return nil }
     // The Obj-C initializer returns nil (bridged into a non-optional Swift type)
     // when it rejects the data; wrap in `Optional` to observe that without trapping.
     guard let glyph = Optional(NSAdaptiveImageGlyph(imageContent: imageContent)) else { return nil }
