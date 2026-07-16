@@ -1,0 +1,68 @@
+name: Diagnose
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bisect-hang:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe HEIC encoding directly
+        continue-on-error: true
+        shell: bash
+        run: |
+          cat > /tmp/probe-heic.swift <<'EOF'
+          import CoreGraphics
+          import Foundation
+          import ImageIO
+          import UniformTypeIdentifiers
+          let ctx = CGContext(
+            data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 64 * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+          ctx.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
+          ctx.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+          let img = ctx.makeImage()!
+          let out = NSMutableData()
+          print("creating destination...")
+          let dest = CGImageDestinationCreateWithData(
+            out, UTType.heic.identifier as CFString, 1, nil)!
+          CGImageDestinationAddImage(dest, img, nil)
+          print("finalizing...")
+          let ok = CGImageDestinationFinalize(dest)
+          print("HEIC finalize ok=\(ok) bytes=\(out.length)")
+          EOF
+          gtimeout 120 xcrun swift /tmp/probe-heic.swift || echo "HEIC PROBE FAILED OR TIMED OUT (exit $?)"
+      - name: Probe NSAdaptiveImageGlyph construction from committed fixture
+        continue-on-error: true
+        shell: bash
+        run: |
+          cat > /tmp/probe-glyph.swift <<'EOF'
+          import AppKit
+          import Foundation
+          let url = URL(fileURLWithPath: "Tests/AdaptiveGlyphKitTests/Fixtures/project-owned-blue-glyph.heic")
+          let data = try Data(contentsOf: url)
+          print("constructing glyph from \(data.count) bytes...")
+          let glyph = NSAdaptiveImageGlyph(imageContent: data)
+          print("glyph null=\(unsafeBitCast(glyph, to: UInt.self) == 0)")
+          EOF
+          gtimeout 120 xcrun swift /tmp/probe-glyph.swift || echo "GLYPH PROBE FAILED OR TIMED OUT (exit $?)"
+      - name: Control - filtered suites without HEIC encoding
+        continue-on-error: true
+        shell: bash
+        run: |
+          gtimeout 600 swift test --filter 'FixtureProvenanceTests|ImageContentConsumptionTests|ImageContentPolicyTests' \
+            || echo "NO-ENCODE FILTERED SUITES FAILED OR TIMED OUT (exit $?)"
+      - name: Suspect - forge suites that HEIC-encode
+        continue-on-error: true
+        shell: bash
+        run: |
+          gtimeout 600 swift test --filter 'AdaptiveImageGlyphForgeTests' \
+            || echo "FORGE SUITE FAILED OR TIMED OUT (exit $?)"
