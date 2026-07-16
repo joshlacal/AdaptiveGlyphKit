@@ -104,9 +104,10 @@ struct AdaptiveImageGlyphForgeTests {
 
   @Test("rejects non-forged image content (exercises the nil path)")
   func rejectsNonForgedContent() {
-    // Both garbage bytes and a plain (un-forged) PNG must be rejected by the OS
-    // and returned as nil — this covers the load-bearing NSAdaptiveImageGlyph
-    // rejection branch that the other tests never reach.
+    // Garbage bytes and a plain PNG are rejected by the bounded preflight
+    // before NSAdaptiveImageGlyph is consulted. The system-rejection branch
+    // itself is covered by ImageContentConsumptionTests with the
+    // no-document-name.heic fixture, which passes preflight.
     #expect(AdaptiveImageGlyphForge.makeGlyph(imageContent: Data([0x00, 0x01, 0x02, 0x03])) == nil)
     #expect(AdaptiveImageGlyphForge.makeGlyph(imageContent: Self.samplePNG()) == nil)
   }

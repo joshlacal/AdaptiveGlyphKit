@@ -202,10 +202,28 @@ public enum AdaptiveImageGlyphForge {
   /// reusable content outside rendering callbacks.
   public static func makeGlyph(imageContent: Data) -> NSAdaptiveImageGlyph? {
     guard AdaptiveImageGlyphContentValidator.accepts(imageContent) else { return nil }
-    // The Obj-C initializer returns nil (bridged into a non-optional Swift type)
-    // when it rejects the data; wrap in `Optional` to observe that without trapping.
-    guard let glyph = Optional(NSAdaptiveImageGlyph(imageContent: imageContent)) else { return nil }
-    return glyph
+    return systemGlyph(imageContent: imageContent)
+  }
+
+  /// `NSAdaptiveImageGlyph(imageContent:)` is imported as non-failable but
+  /// returns nil when the system rejects the content. Letting that null flow
+  /// into a non-optional Swift class value is undefined behavior — under `-O`
+  /// the optimizer removes the nil check and rejected content crashes with an
+  /// NSException downstream. Calling alloc/init through the Objective-C
+  /// runtime keeps the result optional end to end.
+  private static func systemGlyph(imageContent: Data) -> NSAdaptiveImageGlyph? {
+    guard
+      let allocated = NSAdaptiveImageGlyph
+        .perform(NSSelectorFromString("alloc"))
+    else { return nil }
+    guard
+      let initialized = allocated.takeUnretainedValue()
+        .perform(NSSelectorFromString("initWithImageContent:"), with: imageContent as NSData)
+    else {
+      // init consumed the allocation and returned nil; nothing to balance.
+      return nil
+    }
+    return initialized.takeRetainedValue() as? NSAdaptiveImageGlyph
   }
 
   // MARK: Encoding policy

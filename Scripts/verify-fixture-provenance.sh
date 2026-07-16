@@ -10,10 +10,11 @@ jq -e '
     "wrong-type.png",
     "nine-representations.heic",
     "edge-1025.heic",
-    "two-1024-representations.heic"
+    "two-1024-representations.heic",
+    "no-document-name.heic"
   ];
   .adaptiveGlyphKitSourceRevision ==
-    "a1afe9552df4384999a736dcf24cc44d0fdc0750"
+    "770ece8e1797adc91a0e7e88506712cc8f292557"
   and .sourceArtwork ==
     "Original solid-blue circle drawn by the AdaptiveGlyphKit fixture generator."
   and ((.generatorPlatform | type) == "string")
@@ -23,8 +24,8 @@ jq -e '
   and .semanticIdentifier == "adaptiveglyphkit.project-owned.blue-circle.v1"
   and .semanticDescription == "Project-owned blue circle"
   and ((.fixtures | type) == "array")
-  and (.fixtures | length == 5)
-  and (([.fixtures[].path] | unique | length) == 5)
+  and (.fixtures | length == 6)
+  and (([.fixtures[].path] | unique | length) == 6)
   and (([.fixtures[].path] | sort) == (expected_paths | sort))
   and all(.fixtures[];
     ((.path | type) == "string")

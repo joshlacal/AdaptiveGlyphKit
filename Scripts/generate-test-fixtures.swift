@@ -7,7 +7,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-let sourceRevision = "a1afe9552df4384999a736dcf24cc44d0fdc0750"
+let sourceRevision = "770ece8e1797adc91a0e7e88506712cc8f292557"
 let sourceArtwork =
   "Original solid-blue circle drawn by the AdaptiveGlyphKit fixture generator."
 let generatorPlatform = ProcessInfo.processInfo.operatingSystemVersionString
@@ -74,7 +74,11 @@ let glyphProperties: [CFString: Any] = [
   kCGImagePropertyTIFFDictionary: tiffProperties,
 ]
 
-func encode(images: [CGImage], as type: UTType) throws -> Data {
+func encode(
+  images: [CGImage],
+  as type: UTType,
+  properties: [CFString: Any]? = glyphProperties
+) throws -> Data {
   let output = NSMutableData()
   guard
     let destination = CGImageDestinationCreateWithData(
@@ -83,7 +87,7 @@ func encode(images: [CGImage], as type: UTType) throws -> Data {
     throw FixtureGenerationError.cannotCreateDestination(type: type.identifier)
   }
   for image in images {
-    CGImageDestinationAddImage(destination, image, glyphProperties as CFDictionary)
+    CGImageDestinationAddImage(destination, image, properties as CFDictionary?)
   }
   guard CGImageDestinationFinalize(destination) else {
     throw FixtureGenerationError.cannotFinalizeDestination(type: type.identifier)
@@ -116,6 +120,10 @@ let generatedFixtures: [(path: String, data: Data)] = [
   ("nine-representations.heic", try encode(images: Array(repeating: artwork128, count: 9), as: .heic)),
   ("edge-1025.heic", try encode(images: [artwork1025], as: .heic)),
   ("two-1024-representations.heic", try encode(images: [artwork1024, artwork1024], as: .heic)),
+  // Passes the bounded preflight (valid single-representation HEIC) but omits
+  // the TIFF DocumentName, so NSAdaptiveImageGlyph itself rejects it. This is
+  // the only fixture that exercises the system-rejection branch.
+  ("no-document-name.heic", try encode(images: [artwork512], as: .heic, properties: nil)),
 ]
 
 for fixture in generatedFixtures {

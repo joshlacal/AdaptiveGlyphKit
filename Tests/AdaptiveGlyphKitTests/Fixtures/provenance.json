@@ -1,5 +1,5 @@
 {
-  "adaptiveGlyphKitSourceRevision" : "a1afe9552df4384999a736dcf24cc44d0fdc0750",
+  "adaptiveGlyphKitSourceRevision" : "770ece8e1797adc91a0e7e88506712cc8f292557",
   "fixtures" : [
     {
       "byteCount" : 10479,
@@ -25,6 +25,11 @@
       "byteCount" : 41251,
       "path" : "two-1024-representations.heic",
       "sha256" : "a30f743cc529796d199a983562dd5f6f47428407bf960408082e1636f5fed5f7"
+    },
+    {
+      "byteCount" : 9788,
+      "path" : "no-document-name.heic",
+      "sha256" : "7083f1eebfb442b12507270cf67d9cfe5bbbfe240568be68138d25157c47a7bd"
     }
   ],
   "generatorCommand" : "xcrun swift Scripts\/generate-test-fixtures.swift Tests\/AdaptiveGlyphKitTests\/Fixtures",

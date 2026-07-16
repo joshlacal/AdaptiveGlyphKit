@@ -27,6 +27,7 @@ struct FixtureProvenanceTests {
     "nine-representations.heic",
     "edge-1025.heic",
     "two-1024-representations.heic",
+    "no-document-name.heic",
   ]
 
   @Test("every fixture matches its recorded byte count and SHA-256")
@@ -35,7 +36,7 @@ struct FixtureProvenanceTests {
     let provenance = try JSONDecoder().decode(FixtureProvenance.self, from: provenanceData)
     #expect(
       provenance.adaptiveGlyphKitSourceRevision
-        == "a1afe9552df4384999a736dcf24cc44d0fdc0750")
+        == "770ece8e1797adc91a0e7e88506712cc8f292557")
     #expect(
       provenance.sourceArtwork
         == "Original solid-blue circle drawn by the AdaptiveGlyphKit fixture generator.")
