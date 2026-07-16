@@ -1,35 +1,42 @@
-name: CI
+name: Release
 
 on:
-  pull_request:
   push:
-    branches: [main]
+    tags: ['*.*.*']
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
-  minimum-xcode:
+  validate-tag:
     runs-on: macos-15
+    steps:
+      - name: Require a bare semantic-version tag
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        shell: bash
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "release tags must be bare SemVer (e.g. 0.1.0), got: $GITHUB_REF_NAME" >&2
+            exit 1
+          }
+
+  minimum-toolchain:
+    runs-on: macos-15
+    needs: [validate-tag]
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
-      - name: Verify minimum Xcode 16.0
+      - name: Verify exact minimum Xcode 16.0 (16A242d)
         shell: bash
         run: |
           test -d "$DEVELOPER_DIR"
-          /usr/bin/xcodebuild -version
           actual_xcode=$(/usr/bin/xcodebuild -version | sed -n 's/^Xcode //p')
-          test "$actual_xcode" = "16.0" || {
-            echo "expected Xcode 16.0 at $DEVELOPER_DIR, found $actual_xcode" >&2
-            echo "if the runner image dropped Xcode 16.0, bump the package minimum deliberately" >&2
-            exit 1
-          }
+          actual_build=$(/usr/bin/xcodebuild -version | sed -n 's/^Build version //p')
+          test "$actual_xcode" = "16.0"
+          test "$actual_build" = "16A242d"
+          /usr/bin/xcodebuild -version
           /usr/bin/xcrun --find swift
       - name: Test Debug and Release on macOS
         shell: bash
@@ -53,9 +60,27 @@ jobs:
               -destination "$destination" \
               SWIFT_STRICT_CONCURRENCY=complete SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
           done
+      - name: Run the complete suite on watchOS 11.0 (minimum deployment)
+        shell: bash
+        run: |
+          /usr/bin/xcodebuild -downloadPlatform watchOS -buildVersion 11.0
+          /usr/bin/xcrun simctl list runtimes | grep -F 'watchOS 11.0'
+          WATCH_RUNTIME_ID=com.apple.CoreSimulator.SimRuntime.watchOS-11-0
+          WATCH_UDID="$(bash Scripts/select-watch-simulator.sh "$WATCH_RUNTIME_ID")"
+          test -n "$WATCH_UDID"
+          /usr/bin/xcodebuild test \
+            -scheme AdaptiveGlyphKit \
+            -configuration Debug \
+            -destination "platform=watchOS Simulator,id=$WATCH_UDID" \
+            SWIFT_STRICT_CONCURRENCY=complete \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+      - name: Prove the watchOS compile-time API surface
+        shell: bash
+        run: bash Scripts/test-watchos-api-surface.sh
 
   newest-stable:
     runs-on: macos-15
+    needs: [validate-tag]
     steps:
       - uses: actions/checkout@v4
       - name: Select newest stable Xcode
@@ -78,23 +103,12 @@ jobs:
             -Xswiftc -warnings-as-errors
       - name: Run the supported platform runtime matrix
         shell: bash
+        env:
+          RELEASE_EVIDENCE_LABEL: hosted-newest-stable
+          RELEASE_EVIDENCE_CLASS: stable-release
         run: |
           result_dir="$(mktemp -d /tmp/adaptiveglyphkit-platform-results.XXXXXX)"
           bash Scripts/test-platform-matrix.sh "$result_dir"
-
-  watchos:
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Select newest stable Xcode
-        shell: bash
-        run: |
-          newest=$(basename -a /Applications/Xcode_*.app \
-            | grep -E '^Xcode_[0-9]+([.][0-9]+)*[.]app$' \
-            | sort -V | tail -1)
-          test -n "$newest"
-          echo "DEVELOPER_DIR=/Applications/$newest/Contents/Developer" >> "$GITHUB_ENV"
-          DEVELOPER_DIR="/Applications/$newest/Contents/Developer" /usr/bin/xcodebuild -version
       - name: Run the complete suite on the newest available watchOS runtime
         shell: bash
         run: |
@@ -114,12 +128,10 @@ jobs:
             -destination "platform=watchOS Simulator,id=$udid" \
             SWIFT_STRICT_CONCURRENCY=complete \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
-      - name: Prove the watchOS compile-time API surface
-        shell: bash
-        run: bash Scripts/test-watchos-api-surface.sh
 
   fixture-provenance:
     runs-on: macos-15
+    needs: [validate-tag]
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
     steps:
@@ -132,3 +144,22 @@ jobs:
           swift test --filter FixtureProvenanceTests \
             -Xswiftc -strict-concurrency=complete \
             -Xswiftc -warnings-as-errors
+
+  tagged-clean-consumer:
+    runs-on: macos-15
+    needs: [minimum-toolchain, newest-stable, fixture-provenance]
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
+      ADAPTIVE_GLYPHKIT_URL: https://github.com/${{ github.repository }}.git
+      ADAPTIVE_GLYPHKIT_VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve and build from the public immutable tag
+        shell: bash
+        run: |
+          test -d "$DEVELOPER_DIR"
+          SWIFT_BIN="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift"
+          export SWIFT_BIN
+          "$SWIFT_BIN" package describe
+          bash Scripts/test-clean-consumer.sh
