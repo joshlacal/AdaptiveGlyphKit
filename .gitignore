@@ -4,3 +4,5 @@
 *.xcodeproj
 Package.resolved
 _trash/
+.claude/
+.superpowers/
