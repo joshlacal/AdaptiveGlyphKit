@@ -6,11 +6,46 @@ if [[ $# -ne 1 || -z $1 ]]; then
   exit 64
 fi
 
-RESULT_DIRECTORY=$1
-case "$RESULT_DIRECTORY" in
-  /tmp/* | /private/tmp/*) ;;
+requested_result_directory=$1
+result_parent=${requested_result_directory%/*}
+result_leaf=${requested_result_directory##*/}
+
+if [[
+  "$requested_result_directory" != /* ||
+  -z "$result_parent" ||
+  -z "$result_leaf" ||
+  "$result_leaf" == . ||
+  "$result_leaf" == .. ||
+  ! -d "$result_parent"
+]]; then
+  echo "RESULT_DIRECTORY must resolve strictly within /private/tmp/" >&2
+  exit 64
+fi
+
+canonical_parent="$(cd "$result_parent" && pwd -P)"
+candidate_result_directory="$canonical_parent/$result_leaf"
+case "$candidate_result_directory" in
+  /private/tmp/*) ;;
   *)
-    echo "RESULT_DIRECTORY must be an absolute path under /tmp" >&2
+    echo "RESULT_DIRECTORY must resolve strictly within /private/tmp/" >&2
+    exit 64
+    ;;
+esac
+
+if [[ -e "$candidate_result_directory" || -L "$candidate_result_directory" ]]; then
+  [[ -d "$candidate_result_directory" ]] || {
+    echo "RESULT_DIRECTORY must be a directory" >&2
+    exit 64
+  }
+else
+  mkdir "$candidate_result_directory"
+fi
+
+RESULT_DIRECTORY="$(cd "$candidate_result_directory" && pwd -P)"
+case "$RESULT_DIRECTORY" in
+  /private/tmp/*) ;;
+  *)
+    echo "RESULT_DIRECTORY must resolve strictly within /private/tmp/" >&2
     exit 64
     ;;
 esac
