@@ -60,17 +60,25 @@ command -v jq >/dev/null 2>&1 || {
   exit 1
 }
 
+# Compare canonical paths: runner images expose the same Xcode under alias
+# symlinks (Xcode_26.3.app vs Xcode_26.3.0.app), and xcrun reports the
+# canonical one.
+canonical_developer_dir="$(cd "$DEVELOPER_DIR" && pwd -P)"
 swift_bin="$(/usr/bin/xcrun --find swift)"
-case "$swift_bin" in
-  "$DEVELOPER_DIR"/*) ;;
+canonical_swift_bin="$(cd "$(dirname "$swift_bin")" && pwd -P)/$(basename "$swift_bin")"
+case "$canonical_swift_bin" in
+  "$canonical_developer_dir"/*) ;;
   *)
     echo "Active Swift is outside DEVELOPER_DIR: $swift_bin" >&2
     exit 1
     ;;
 esac
-if [[ -n ${RELEASE_SWIFT:-} && "$swift_bin" != "$RELEASE_SWIFT" ]]; then
-  echo "Active Swift does not match RELEASE_SWIFT: $swift_bin" >&2
-  exit 1
+if [[ -n ${RELEASE_SWIFT:-} ]]; then
+  canonical_release_swift="$(cd "$(dirname "$RELEASE_SWIFT")" && pwd -P)/$(basename "$RELEASE_SWIFT")"
+  if [[ "$canonical_swift_bin" != "$canonical_release_swift" ]]; then
+    echo "Active Swift does not match RELEASE_SWIFT: $swift_bin" >&2
+    exit 1
+  fi
 fi
 
 swift_version="$({

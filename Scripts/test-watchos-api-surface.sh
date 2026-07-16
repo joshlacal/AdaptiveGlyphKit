@@ -4,9 +4,14 @@ set -euo pipefail
 
 : "${DEVELOPER_DIR:?run through the reviewed toolchain preflight}"
 test -d "$DEVELOPER_DIR"
+# Compare canonical paths: runner images expose the same Xcode under alias
+# symlinks (Xcode_26.3.app vs Xcode_26.3.0.app), and xcrun reports the
+# canonical one.
+CANONICAL_DEVELOPER_DIR="$(cd "$DEVELOPER_DIR" && pwd -P)"
 ACTIVE_SWIFT="$(/usr/bin/xcrun --find swift)"
-case "$ACTIVE_SWIFT" in
-  "$DEVELOPER_DIR"/*) ;;
+CANONICAL_ACTIVE_SWIFT="$(cd "$(dirname "$ACTIVE_SWIFT")" && pwd -P)/$(basename "$ACTIVE_SWIFT")"
+case "$CANONICAL_ACTIVE_SWIFT" in
+  "$CANONICAL_DEVELOPER_DIR"/*) ;;
   *)
     echo "active Swift is outside DEVELOPER_DIR: $ACTIVE_SWIFT" >&2
     exit 1

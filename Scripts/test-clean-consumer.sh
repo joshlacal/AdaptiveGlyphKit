@@ -16,10 +16,15 @@ esac
 : "${DEVELOPER_DIR:?workflow must select and verify an exact Xcode first}"
 : "${SWIFT_BIN:?workflow must export the verified Xcode Swift binary first}"
 test -d "$DEVELOPER_DIR"
+# Compare canonical paths: runner images expose the same Xcode under alias
+# symlinks, and xcrun reports the canonical one.
+canonicalize() {
+  printf '%s/%s\n' "$(cd "$(dirname "$1")" && pwd -P)" "$(basename "$1")"
+}
 EXPECTED_SWIFT="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift"
-test "$SWIFT_BIN" = "$EXPECTED_SWIFT"
+test "$(canonicalize "$SWIFT_BIN")" = "$(canonicalize "$EXPECTED_SWIFT")"
 test -x "$SWIFT_BIN"
-test "$(/usr/bin/xcrun --find swift)" = "$SWIFT_BIN"
+test "$(canonicalize "$(/usr/bin/xcrun --find swift)")" = "$(canonicalize "$SWIFT_BIN")"
 
 ROOT="$(mktemp -d)"
 trap 'status=$?; trap - EXIT; rm -rf "$ROOT"; exit "$status"' EXIT
