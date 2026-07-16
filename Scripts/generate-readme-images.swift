@@ -111,7 +111,7 @@ func forgedContent(_ image: CGImage) throws -> Data {
 
 @MainActor
 func render(lines: [(text: String, pointSize: CGFloat)], glyph: NSAdaptiveImageGlyph, width: CGFloat)
-  throws -> NSBitmapImageRep
+  throws -> Data
 {
   let storage = NSMutableAttributedString()
   for (index, line) in lines.enumerated() {
@@ -156,23 +156,18 @@ func render(lines: [(text: String, pointSize: CGFloat)], glyph: NSAdaptiveImageG
   let frame = NSRect(x: 0, y: 0, width: width, height: ceil(used.height) + padding * 2)
   textView.frame = frame
 
-  let window = NSWindow(
-    contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
-  window.contentView = textView
+  // No NSWindow: cacheDisplay renders the view hierarchy without one, and a
+  // window needs a window-server connection that CI environments may not have.
   textView.layoutSubtreeIfNeeded()
 
   guard let rep = textView.bitmapImageRepForCachingDisplay(in: textView.bounds) else {
     throw ImageGenerationError.cannotSnapshot
   }
   textView.cacheDisplay(in: textView.bounds, to: rep)
-  return rep
-}
-
-func writePNG(_ rep: NSBitmapImageRep, to url: URL) throws {
-  guard let data = rep.representation(using: .png, properties: [:]) else {
+  guard let png = rep.representation(using: .png, properties: [:]) else {
     throw ImageGenerationError.cannotEncode
   }
-  try data.write(to: url, options: .atomic)
+  return png
 }
 
 // MARK: Main
@@ -197,7 +192,8 @@ let inline = try await MainActor.run {
     glyph: glyph,
     width: 880)
 }
-try writePNG(inline, to: outputDirectory.appendingPathComponent("inline-glyph.png"))
+try inline.write(
+  to: outputDirectory.appendingPathComponent("inline-glyph.png"), options: .atomic)
 
 let sizes = try await MainActor.run {
   try render(
@@ -210,6 +206,7 @@ let sizes = try await MainActor.run {
     glyph: glyph,
     width: 880)
 }
-try writePNG(sizes, to: outputDirectory.appendingPathComponent("dynamic-type.png"))
+try sizes.write(
+  to: outputDirectory.appendingPathComponent("dynamic-type.png"), options: .atomic)
 
 print("wrote inline-glyph.png and dynamic-type.png to \(outputDirectory.path)")

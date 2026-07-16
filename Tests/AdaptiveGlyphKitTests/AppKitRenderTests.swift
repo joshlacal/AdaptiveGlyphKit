@@ -26,9 +26,9 @@
       textView.font = .systemFont(ofSize: 40)
       textView.textStorage?.setAttributedString(attributed)
 
-      let window = NSWindow(
-        contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
-      window.contentView = textView
+      // No NSWindow: cacheDisplay renders the view hierarchy without one, and
+      // creating a window needs a window-server connection that hangs forever
+      // in unbundled `swift test` processes on hosted CI runners.
       textView.layoutSubtreeIfNeeded()
 
       guard let rep = textView.bitmapImageRepForCachingDisplay(in: textView.bounds) else { return -1 }

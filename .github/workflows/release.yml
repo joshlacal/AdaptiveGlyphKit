@@ -11,6 +11,7 @@ permissions:
 jobs:
   validate-tag:
     runs-on: macos-15
+    timeout-minutes: 10
     steps:
       - name: Require a bare semantic-version tag
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -23,6 +24,7 @@ jobs:
 
   minimum-toolchain:
     runs-on: macos-15
+    timeout-minutes: 120
     needs: [validate-tag]
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
@@ -80,6 +82,7 @@ jobs:
 
   newest-stable:
     runs-on: macos-15
+    timeout-minutes: 120
     needs: [validate-tag]
     steps:
       - uses: actions/checkout@v4
@@ -132,6 +135,7 @@ jobs:
 
   fixture-provenance:
     runs-on: macos-15
+    timeout-minutes: 30
     needs: [validate-tag]
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
@@ -148,6 +152,7 @@ jobs:
 
   tagged-clean-consumer:
     runs-on: macos-15
+    timeout-minutes: 30
     needs: [minimum-toolchain, newest-stable, fixture-provenance]
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     env:

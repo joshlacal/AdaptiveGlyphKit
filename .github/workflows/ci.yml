@@ -10,11 +10,12 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   minimum-xcode:
     runs-on: macos-15
+    timeout-minutes: 60
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
     steps:
@@ -56,6 +57,7 @@ jobs:
 
   newest-stable:
     runs-on: macos-15
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Select newest stable Xcode
@@ -85,6 +87,7 @@ jobs:
 
   watchos:
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select newest stable Xcode
@@ -122,6 +125,7 @@ jobs:
 
   fixture-provenance:
     runs-on: macos-15
+    timeout-minutes: 30
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
     steps:
