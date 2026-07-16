@@ -39,7 +39,7 @@ jobs:
           let ok = CGImageDestinationFinalize(dest)
           print("HEIC finalize ok=\(ok) bytes=\(out.length)")
           EOF
-          gtimeout 120 xcrun swift /tmp/probe-heic.swift || echo "HEIC PROBE FAILED OR TIMED OUT (exit $?)"
+          perl -e 'alarm shift; exec @ARGV' 120 xcrun swift /tmp/probe-heic.swift || echo "HEIC PROBE FAILED OR TIMED OUT (exit $?)"
       - name: Probe NSAdaptiveImageGlyph construction from committed fixture
         continue-on-error: true
         shell: bash
@@ -53,16 +53,16 @@ jobs:
           let glyph = NSAdaptiveImageGlyph(imageContent: data)
           print("glyph null=\(unsafeBitCast(glyph, to: UInt.self) == 0)")
           EOF
-          gtimeout 120 xcrun swift /tmp/probe-glyph.swift || echo "GLYPH PROBE FAILED OR TIMED OUT (exit $?)"
+          perl -e 'alarm shift; exec @ARGV' 120 xcrun swift /tmp/probe-glyph.swift || echo "GLYPH PROBE FAILED OR TIMED OUT (exit $?)"
       - name: Control - filtered suites without HEIC encoding
         continue-on-error: true
         shell: bash
         run: |
-          gtimeout 600 swift test --filter 'FixtureProvenanceTests|ImageContentConsumptionTests|ImageContentPolicyTests' \
+          perl -e 'alarm shift; exec @ARGV' 600 swift test --filter 'FixtureProvenanceTests|ImageContentConsumptionTests|ImageContentPolicyTests' \
             || echo "NO-ENCODE FILTERED SUITES FAILED OR TIMED OUT (exit $?)"
       - name: Suspect - forge suites that HEIC-encode
         continue-on-error: true
         shell: bash
         run: |
-          gtimeout 600 swift test --filter 'AdaptiveImageGlyphForgeTests' \
+          perl -e 'alarm shift; exec @ARGV' 600 swift test --filter 'AdaptiveImageGlyphForgeTests' \
             || echo "FORGE SUITE FAILED OR TIMED OUT (exit $?)"
