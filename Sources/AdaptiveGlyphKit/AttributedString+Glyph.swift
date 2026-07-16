@@ -23,6 +23,9 @@ public extension AttributedString {
   /// Fails (returns `nil`) if the glyph attribute cannot be bridged into an
   /// `AttributedString` — so callers can substitute readable text rather than an
   /// invisible placeholder.
+  ///
+  /// Bridging is synchronous. Build and cache reusable attributed values outside
+  /// SwiftUI `body` and other rendering callbacks.
   init?(adaptiveImageGlyph glyph: NSAdaptiveImageGlyph) {
     let ns = NSMutableAttributedString(string: AttributedString.glyphPlaceholder)
     ns.addAttribute(
@@ -40,6 +43,12 @@ public extension AttributedString {
 
   /// Build an inline adaptive image glyph from previously forged image content,
   /// falling back to readable text if the content or attribution is rejected.
+  ///
+  /// The content passes the same bounded preflight as
+  /// ``AdaptiveImageGlyphForge/makeGlyph(imageContent:)`` before glyph parsing.
+  /// Validation, parsing, and attributed-string bridging are synchronous; cache
+  /// reusable values outside SwiftUI `body`. This is the watchOS-supported
+  /// consume-and-render path.
   static func adaptiveImageGlyph(
     imageContent: Data,
     fallback: String
@@ -54,11 +63,16 @@ public extension AttributedString {
   }
 
   /// Forge an inline adaptive image glyph from image data, **falling back to
-  /// readable text** whenever anything fails (decoding, encoding, system
-  /// acceptance, or attribution).
+  /// readable text** whenever anything fails (decoding, encoding, preflight,
+  /// system acceptance, or attribution).
   ///
   /// This is the recommended high-level entry point: it always returns a usable
   /// `AttributedString`, never an invisible placeholder.
+  /// ImageIO decodes the data and normalizes EXIF orientation without
+  /// upscaling. The longer-edge default is 512 pixels and hard-clamps at 1,024.
+  /// Decode, resize, encode, validate, parse, and bridge work is synchronous;
+  /// call this outside SwiftUI `body`. Source-image forging is compile-time
+  /// unavailable on watchOS.
   ///
   /// ```swift
   /// Text(.adaptiveImageGlyph(

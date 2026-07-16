@@ -33,6 +33,12 @@ public enum GlyphForgeError: Error, Equatable, Sendable {
 ///   rather than the full multi-resolution content Apple's own tooling emits.
 ///   Glyph builders return `nil` (never trap) when the OS rejects the data;
 ///   always treat `nil` as "fall back to text".
+///
+/// Source-image entry points are compile-time unavailable on watchOS. Forge on
+/// an encoding-capable platform and transfer the bounded `imageContent` bytes
+/// for watchOS consumption. Decode, resize, encode, validate, and glyph parsing
+/// are synchronous operations; prepare or cache their results away from UI
+/// rendering callbacks.
 public enum AdaptiveImageGlyphForge {
 
   /// Default maximum pixel dimension for the longer edge of forged glyph content.
@@ -48,8 +54,12 @@ public enum AdaptiveImageGlyphForge {
 
   // MARK: Image content (HEIC bytes)
 
-  /// Encode glyph image content from source image data, normalizing EXIF
-  /// orientation and downsampling so the longer edge is at most `maximumDimension`.
+  /// Encode glyph image content from source image data.
+  ///
+  /// ImageIO decodes the data, normalizes EXIF orientation, and downsamples
+  /// without upscaling. The longer-edge default is 512 pixels, and every caller
+  /// value is hard-clamped to the shared 1,024-pixel forge ceiling. This
+  /// synchronous source-image API is compile-time unavailable on watchOS.
   ///
   /// - Throws: ``GlyphForgeError/cannotDecodeImage``, ``GlyphForgeError/encodingFailed``,
   ///   or ``GlyphForgeError/outputExceedsConsumerLimits``.
@@ -78,8 +88,13 @@ public enum AdaptiveImageGlyphForge {
       maximumDimension: CGFloat(maximumPixelDimension))
   }
 
-  /// Encode glyph image content from an already-decoded image, downscaling so
-  /// the longer edge is at most `maximumDimension`.
+  /// Encode glyph image content from an already-decoded image.
+  ///
+  /// This path performs no EXIF work and never upscales. When the image exceeds
+  /// the requested bound, it uses CoreGraphics to resize it. The longer-edge
+  /// default is 512 pixels, and every caller value is hard-clamped to the shared
+  /// 1,024-pixel forge ceiling. This synchronous source-image API is
+  /// compile-time unavailable on watchOS.
   ///
   /// - Throws: ``GlyphForgeError/encodingFailed`` or
   ///   ``GlyphForgeError/outputExceedsConsumerLimits``.
@@ -122,8 +137,11 @@ public enum AdaptiveImageGlyphForge {
 
   /// Forge an adaptive image glyph from source image data.
   ///
-  /// Normalizes orientation and downsamples to `maximumDimension`. Returns `nil`
-  /// if decoding, encoding, or system acceptance fails.
+  /// ImageIO decodes the data and normalizes EXIF orientation before bounded
+  /// encoding. The longer-edge default is 512 pixels and hard-clamps at 1,024;
+  /// the image is never upscaled. Returns `nil` if decoding, encoding,
+  /// preflight, or system acceptance fails. This synchronous source-image API
+  /// is compile-time unavailable on watchOS.
   @available(
     watchOS, unavailable,
     message: "Forge on an encoding-capable platform, then pass imageContent."
@@ -142,8 +160,13 @@ public enum AdaptiveImageGlyphForge {
     return makeGlyph(imageContent: content)
   }
 
-  /// Forge an adaptive image glyph from an already-decoded `CGImage`,
-  /// downscaling to `maximumDimension` when needed.
+  /// Forge an adaptive image glyph from an already-decoded `CGImage`.
+  ///
+  /// This path performs no EXIF work, never upscales, and uses CoreGraphics
+  /// resizing only when the source exceeds the selected bound. The longer-edge
+  /// default is 512 pixels and hard-clamps at 1,024. Returns `nil` if encoding,
+  /// preflight, or system acceptance fails. This synchronous source-image API
+  /// is compile-time unavailable on watchOS.
   @available(
     watchOS, unavailable,
     message: "Forge on an encoding-capable platform, then pass imageContent."
@@ -162,10 +185,21 @@ public enum AdaptiveImageGlyphForge {
     return makeGlyph(imageContent: content)
   }
 
-  /// Rebuild a glyph from previously forged image content (e.g. from a cache).
+  /// Build a glyph from bounded pre-forged adaptive-glyph content.
   ///
-  /// The `contentIdentifier`/`contentDescription` are read back out of the bytes,
-  /// so nothing is lost round-tripping through storage.
+  /// This accepts externally forged data and reconstructs glyphs from cached
+  /// bytes; neither origin bypasses preflight. Input must be nonempty and no
+  /// larger than 1,048,576 bytes, have type
+  /// `NSAdaptiveImageGlyph.contentType`, and contain one to eight
+  /// representations. Every representation must have integral width and height
+  /// from 1 through 1,024 pixels. Cumulative pixels must not exceed 1,048,576,
+  /// using checked arithmetic.
+  ///
+  /// The 1 MiB bound is AdaptiveGlyphKit's intentional 0.1.0 policy, not a
+  /// documented Apple limit. There is no caller-selectable unlimited sentinel.
+  /// The `contentIdentifier` and `contentDescription` are read from the bytes.
+  /// Structural parsing and glyph parsing are synchronous; validate and cache
+  /// reusable content outside rendering callbacks.
   public static func makeGlyph(imageContent: Data) -> NSAdaptiveImageGlyph? {
     guard AdaptiveImageGlyphContentValidator.accepts(imageContent) else { return nil }
     // The Obj-C initializer returns nil (bridged into a non-optional Swift type)

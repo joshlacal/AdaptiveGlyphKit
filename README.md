@@ -1,127 +1,166 @@
 # AdaptiveGlyphKit
 
-Render **existing artwork as an inline adaptive image glyph** in Apple text —
-flowing inside a sentence like Genmoji, sized to the surrounding text, scaling
-with Dynamic Type, carrying an accessibility description.
+AdaptiveGlyphKit renders existing artwork as an inline adaptive image glyph in
+Apple text. Glyphs flow inside a sentence like Genmoji, scale with Dynamic
+Type, and can carry an accessibility description.
 
-`NSAdaptiveImageGlyph` is the system type behind Genmoji and custom stickers.
-Apple ships no API to build one from your own artwork — its initializer only
-accepts data the system itself produced. AdaptiveGlyphKit is an **experimental
-compatibility bridge**: it reproduces the minimal shape that
-`NSAdaptiveImageGlyph(imageContent:)` accepts, so a PNG (or any
-`ImageIO`-decodable image) can be turned into glyph content and dropped into a
-SwiftUI `Text`, `UITextView`, or `NSTextView`.
+`NSAdaptiveImageGlyph` is the system type behind Genmoji and custom stickers,
+but its public initializer accepts only prebuilt image content. AdaptiveGlyphKit
+is an experimental compatibility bridge: it forges the minimal accepted content
+shape on encoding-capable platforms and safely consumes bounded pre-forged
+content on every supported platform.
+
+## Installation
+
+After publication, add the package with a library-compatible version range:
+
+```swift
+dependencies: [
+  .package(
+    url: "https://github.com/joshlacal/AdaptiveGlyphKit.git",
+    .upToNextMinor(from: "0.1.0")),
+]
+```
+
+The repository and immutable `0.1.0` tag are not published yet; the coordinate
+above is the intended release target. AdaptiveGlyphKit has no third-party
+dependencies.
+
+## Prepare glyphs before rendering
 
 ```swift
 import AdaptiveGlyphKit
+import SwiftUI
 
-// One call, always safe: renders the glyph, or the fallback text if anything fails.
-Text(.adaptiveImageGlyph(
+let renderedGlyph: AttributedString = .adaptiveImageGlyph(
   from: pngData,
-  contentIdentifier: stableID,             // the glyph cache key — stable & unique
+  contentIdentifier: stableID,
   accessibilityDescription: "A round blue cat",
-  fallback: ":blobcat:"))
+  fallback: ":blobcat:")
+
+struct GlyphRow: View {
+  let renderedGlyph: AttributedString
+
+  var body: some View {
+    Text(renderedGlyph)
+  }
+}
 ```
+
+Image decode, EXIF normalization, resize, HEIC encode, structural parse, and
+glyph parse are synchronous and must be performed or cached outside SwiftUI body.
+
+## Platform capabilities
+
+| Platform | Forge source images | Consume pre-forged content | Render |
+|---|---:|---:|---:|
+| iOS 18 / iPadOS 18 | Yes | Yes | Yes |
+| macOS 15 | Yes | Yes | Yes |
+| Mac Catalyst 18 | Yes | Yes | Yes |
+| tvOS 18 | Yes | Yes | Yes |
+| visionOS 2 | Yes | Yes | Yes |
+| watchOS 11 | No, compile-time unavailable | Yes | Yes |
+
+watchOS can consume and render pre-forged content only. Load persisted content
+outside `body`, then build the attributed value:
+
+```swift
+let watchText = AttributedString.adaptiveImageGlyph(
+  imageContent: persistedGlyphData,
+  fallback: ":blobcat:")
+```
+
+Forge on an encoding-capable platform, persist or transfer the resulting bytes,
+then validate and cache them on watchOS before rendering. Structural parsing,
+glyph parsing, and attributed-string bridging are synchronous too.
+
+## Bounded 0.1.0 content policy
+
+`makeGlyph(imageContent:)` accepts externally forged adaptive-glyph data and
+reconstructs glyphs from cached bytes; neither origin bypasses preflight. The
+same policy applies to content produced by AdaptiveGlyphKit:
+
+- Input must be nonempty and at most 1,048,576 bytes.
+- The type must equal `NSAdaptiveImageGlyph.contentType`.
+- Content must contain one to eight representations.
+- Every representation must have integral width and height from 1 through
+  1,024 pixels.
+- Cumulative pixels must be at most 1,048,576, using checked arithmetic.
+- There is no caller-selectable unlimited sentinel.
+
+The 1 MiB limit is AdaptiveGlyphKit's intentional 0.1.0 policy, not a
+documented Apple limit.
+
+Source-image forging defaults to a 512-pixel longer edge and hard-clamps at
+1,024 pixels. The `Data` path decodes with ImageIO and normalizes EXIF
+orientation. The `CGImage` path performs no EXIF work, never upscales, and uses
+CoreGraphics resizing only when the source exceeds the selected bound.
+
+## Accessibility
+
+Provide a description when the inline object needs an accessible label:
+
+```swift
+let labeledGlyph = AttributedString.adaptiveImageGlyph(
+  from: pngData,
+  contentIdentifier: stableID,
+  accessibilityDescription: "A round blue cat",
+  fallback: ":blobcat:")
+```
+
+Omitting `accessibilityDescription` produces an unlabeled inline object. The
+`contentIdentifier` is a stable cache key; it is not accessibility text.
+
+## Lower-level API
+
+- `AdaptiveImageGlyphForge.makeImageContent(imageData:...) throws -> Data`
+- `AdaptiveImageGlyphForge.makeImageContent(cgImage:...) throws -> Data`
+- `AdaptiveImageGlyphForge.makeGlyph(imageData:...) -> NSAdaptiveImageGlyph?`
+- `AdaptiveImageGlyphForge.makeGlyph(cgImage:...) -> NSAdaptiveImageGlyph?`
+- `AdaptiveImageGlyphForge.makeGlyph(imageContent:) -> NSAdaptiveImageGlyph?`
+- `AttributedString(adaptiveImageGlyph:) -> AttributedString?`
+- `AttributedString.adaptiveImageGlyph(imageContent:fallback:) -> AttributedString`
 
 To splice a glyph into existing text, replace a range with a glyph run:
 
 ```swift
-var body = AttributedString("hello :blobcat: world")
-if let r = body.range(of: ":blobcat:"),
-   let glyph = AdaptiveImageGlyphForge.makeGlyph(imageData: pngData, contentIdentifier: stableID),
+var text = AttributedString("hello :blobcat: world")
+if let range = text.range(of: ":blobcat:"),
+   let glyph = AdaptiveImageGlyphForge.makeGlyph(
+     imageData: pngData,
+     contentIdentifier: stableID),
    let run = AttributedString(adaptiveImageGlyph: glyph) {
-  body.replaceSubrange(r, with: run)
+  text.replaceSubrange(range, with: run)
 }
-Text(body)
 ```
-
-## Installation
-
-```swift
-.package(url: "https://github.com/joshlacal/AdaptiveGlyphKit.git", from: "0.1.0")
-```
-
-Platforms: iOS 18 · iPadOS 18 · macOS 15 · Mac Catalyst 18 · tvOS 18 ·
-visionOS 2 · watchOS 11. No third-party dependencies.
-
-## API
-
-**High-level (recommended, always returns something usable):**
-
-- `AttributedString.adaptiveImageGlyph(from:contentIdentifier:accessibilityDescription:fallback:maximumDimension:) -> AttributedString`
-  — forges and inlines a glyph, or returns the `fallback` text on any failure.
-
-**Low-level:**
-
-- `AdaptiveImageGlyphForge.makeGlyph(imageData:contentIdentifier:accessibilityDescription:maximumDimension:) -> NSAdaptiveImageGlyph?`
-- `AdaptiveImageGlyphForge.makeGlyph(cgImage:contentIdentifier:accessibilityDescription:) -> NSAdaptiveImageGlyph?`
-- `AdaptiveImageGlyphForge.makeGlyph(imageContent:) -> NSAdaptiveImageGlyph?` — rebuild from cached bytes.
-- `AdaptiveImageGlyphForge.makeImageContent(imageData:…) throws -> Data` — the forged HEIC bytes, for caching (throws `GlyphForgeError`).
-- `AttributedString(adaptiveImageGlyph:) -> AttributedString?` — a single-character (`\u{FFFC}`) glyph run.
-
-Source images are normalized for EXIF orientation and downsampled so the longer
-edge is at most `maximumDimension` (default 512 px), bounding memory/CPU for
-large or remote images.
 
 ## AppKit
 
-Everything works on macOS. AppKit text views render adaptive image glyphs only
-when they opt in — set `importsGraphics` on a TextKit 2 `NSTextView`:
+AppKit text views render adaptive image glyphs when a TextKit 2 `NSTextView`
+opts in:
 
 ```swift
-textView.importsGraphics = true            // enables adaptive image glyphs (macOS 15+)
-if let glyph = AdaptiveImageGlyphForge.makeGlyph(imageData: pngData, contentIdentifier: stableID),
-   let run = AttributedString(adaptiveImageGlyph: glyph) {
-  textView.textStorage?.setAttributedString(NSAttributedString(run))
-}
+textView.importsGraphics = true
+textView.textStorage?.setAttributedString(NSAttributedString(text))
 ```
 
-(`NSTextInputClient.supportsAdaptiveImageGlyph` is the read-only capability flag;
-`importsGraphics` is the switch you set.) Note: SwiftUI's `ImageRenderer` does not
-rasterize adaptive image glyphs on macOS, so snapshot-testing them there needs an
-`NSTextView`; live rendering in a real text view is unaffected.
+`NSTextInputClient.supportsAdaptiveImageGlyph` is the read-only capability
+flag; `importsGraphics` is the switch to set. Use an `NSTextView` when testing
+the AppKit rendering path.
 
-## `contentIdentifier` matters
+## Scope and caveats
 
-`contentIdentifier` becomes the glyph's `contentIdentifier`, which the text
-system uses as a **cache key**. Give each distinct image a **stable, unique**
-identifier (e.g. a UUIDv5 derived from a content hash or source URL). Reusing one
-identifier for different images, or colliding with a real Genmoji's identifier,
-will confuse the glyph cache.
+AdaptiveGlyphKit is not a Genmoji generator. It reproduces an undocumented
+content shape: a HEIC whose TIFF `DocumentName` carries the identifier and whose
+`ImageDescription` carries the optional accessibility text. A future OS could
+change what `NSAdaptiveImageGlyph(imageContent:)` accepts.
 
-## Scope & caveats
-
-This is an **experimental compatibility bridge**, not a Genmoji generator:
-
-- The data shape `NSAdaptiveImageGlyph(imageContent:)` accepts is **not public
-  API**. AdaptiveGlyphKit reproduces it (a HEIC whose TIFF `DocumentName` carries
-  the identifier and `ImageDescription` the accessibility text). A future OS
-  could change what the initializer accepts.
-- It produces a **single HEIC representation** (with alpha), which the system
-  scales. This matches what Apple's own Genmoji actually ship (a single ~320 px
-  image + alpha); AdaptiveGlyphKit uses 512 px. Transparency is preserved and a
-  single representation scales cleanly across Dynamic Type sizes (both verified
-  in tests), so multi-resolution isn't needed for inline use. What's *not*
-  reproduced is the format's sizing/alignment metadata, so baseline/optical
-  alignment may differ slightly from a true Genmoji at extreme sizes.
-- Because acceptance is undocumented, **degrade gracefully**: `makeGlyph`
-  returns `nil` and `AttributedString(adaptiveImageGlyph:)` returns `nil` on
-  failure, and the high-level `adaptiveImageGlyph(from:…fallback:)` returns your
-  text. Never assume a glyph is guaranteed.
-
-## Related work
-
-- [Customoji](https://github.com/YusukeSano/customoji) — generates multiple
-  resolutions, square-crops, typed errors, sync/async, `NSAttributedString`
-  decompose/recompose. Heavier; `UIImage`/`NSImage`-only input.
-- [Zenmoji](https://github.com/noppefoxwolf/Zenmoji) — compact multi-resolution
-  container; iOS-only, no accessibility description, minimal error handling.
-
-AdaptiveGlyphKit differentiates as the **small, dependency-free,
-`Data`/`CGImage`-first, fallback-safe** option with a Swift `AttributedString`
-API and verified SwiftUI + AppKit rendering across six Apple platform families.
-If you need true multi-resolution content today, prefer Customoji.
+The package emits one bounded HEIC representation with alpha. It does not
+reproduce private sizing or alignment metadata, so baseline or optical alignment
+may differ from system Genmoji at extreme sizes. All glyph builders return `nil`
+on rejection, and the high-level attributed-string functions return readable
+fallback text. Never assume glyph construction is guaranteed.
 
 ## License
 
-MIT (see [LICENSE](LICENSE)).
+MIT. See [LICENSE](LICENSE).
