@@ -16,6 +16,10 @@ is an experimental compatibility bridge: it forges the minimal accepted content
 shape on encoding-capable platforms and safely consumes bounded pre-forged
 content on every supported platform.
 
+## Documentation
+
+API reference (DocC): <https://joshlacal.github.io/AdaptiveGlyphKit/>. Build it locally with `Scripts/build-docs-site.sh`.
+
 ## Installation
 
 Add the package with a library-compatible version range:
